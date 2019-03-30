@@ -96,6 +96,7 @@ int main() {
     // private_key_message = bytes(private_key) || message
     strcat(private_key_message, private_key);
     strcat(private_key_message, message);
+    printf("\nprivate_key_message = %s\n", private_key_message);
     // hashed = hash(bytes(private_key) || message)
     secp256k1_sha256_initialize(&hash);
     secp256k1_sha256_write(&hash, private_key_message, strlen(private_key_message));
