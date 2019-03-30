@@ -1,8 +1,5 @@
-compile_generate_keys:
-	gcc -o generate_keys -I ../secp256k1/src/ -I ../secp256k1/ generate_keys.c -lssl -lcrypto -lgmp
-
-generate_keys:
-	./generate_keys
+main:
+	gcc -o main.out -I ../secp256k1/src/ -I ../secp256k1/ main.c -lssl -lcrypto -lgmp
 
 clean:
-	rm generate_keys
+	rm *.out
