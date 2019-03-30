@@ -13,6 +13,8 @@
 #include "../secp256k1/include/secp256k1.h"
 #include "../secp256k1/src/secp256k1.c"
 
+#include <inttypes.h>
+
 // Curva eliptica utilizada na criptografia de chave publica do Bitcoin
 #define DEFAULT_ELLIPTIC_CURVE "secp256k1"
 
@@ -76,17 +78,18 @@ int main() {
 
     /**** sign schnorr ****/
     unsigned char message[32] = "Charles Leclerc";
-    unsigned char *private_key_message = malloc(strlen(private_key) + strlen(message) + 1);
+    unsigned char private_key_message[64];
     unsigned char hashed[32];
-    int overflow = 0;
-    int hashed_int;
-    int nonce_int;
+    unsigned char R_binary[32];
 
     secp256k1_sha256 hash;
 
     secp256k1_scalar hashed_scalar;
     secp256k1_scalar zero_scalar;
     secp256k1_scalar nonce;
+    secp256k1_scalar R;
+
+    //secp256k1_gej group_element_jacobian;
 
     /* Assinatura Schnorr - R */
     // Let nonce = (scalar(0) + scalar(hash(bytes(private_key) || message))) mod group_order
@@ -96,32 +99,35 @@ int main() {
     // private_key_message = bytes(private_key) || message
     strcat(private_key_message, private_key);
     strcat(private_key_message, message);
-    printf("\nprivate_key_message = %s\n", private_key_message);
+    printf("\nprivate_key_message (unsigned char)[%lu]: %s\n", sizeof(private_key_message), private_key_message);
     // hashed = hash(bytes(private_key) || message)
     secp256k1_sha256_initialize(&hash);
-    secp256k1_sha256_write(&hash, private_key_message, strlen(private_key_message));
+    secp256k1_sha256_write(&hash, private_key_message, sizeof(private_key_message));
     secp256k1_sha256_finalize(&hash, hashed);
+    printf("\nhashed (unsigned char)[%lu]: %s\n", sizeof(hashed), hashed);
+
     // hashed_scalar = scalar(hash(bytes(private_key) || message))
-    secp256k1_scalar_set_b32(&hashed_scalar, hashed, &overflow);
-    printf("\nhashed = %s\n", &hashed);
-    if (overflow)
-        BIO_printf(io_print, "Overflow in int(hash(bytes(private_key) || message)).");
+    secp256k1_scalar_set_b32(&hashed_scalar, hashed, NULL);
+    if ((secp256k1_scalar_is_zero(&hashed_scalar)))
+        BIO_printf(io_print, "hashed_scalar is 0.");
+    printf("\nhashed_scalar: %" PRIu32 "\n", hashed_scalar);
     // scalar(0)
     secp256k1_scalar_clear(&zero_scalar);
-    if (overflow || !(secp256k1_scalar_is_zero(&zero_scalar)))
-        BIO_printf(io_print, "Overflow in scalar(0) || scalar(0) isnt 0.");
+    if (!(secp256k1_scalar_is_zero(&zero_scalar)))
+        BIO_printf(io_print, "zero_scalar isnt 0.");
     // nonce = (scalar(0) + scalar(hash(bytes(private_key) || message))) mod group_order
-    secp256k1_scalar_add(&nonce, &zero_scalar, &hashed_scalar);
-    // nonce == 0 
+    secp256k1_scalar_add(&nonce, &hashed_scalar, &zero_scalar);
     if(secp256k1_scalar_is_zero(&nonce))
-        BIO_printf(io_print, "nonce equals 0");
+        BIO_printf(io_print, "nonce is 0");
+    printf("\nnonce: %" PRIu32 "\n", nonce);
+    
     // R = nonce G
-
-
-    secp256k1_scalar_set_int(&hashed_scalar, nonce_int);
-    secp256k1_scalar_set_int(&nonce, nonce_int);
-    printf("\nhashed_scalar = %d\n", hashed_int);
-    printf("\nnonce = %d\n", nonce_int);
+    //R = nonce;
+    //secp256k1_ecmult_gen(&ctx->ecmult_gen_ctx, &group_element_jacobian, &R);
+    //if(secp256k1_scalar_is_zero(&R))
+    //    BIO_printf(io_print, "R equals 0");
+    //secp256k1_scalar_get_b32(R_binary, &R);
+    //printf("\nR (unsigned char)[%lu]: %s\n", sizeof(R_binary), R_binary);  
 
     // Liberando os ponteiros alocados
     EVP_cleanup();
