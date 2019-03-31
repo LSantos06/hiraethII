@@ -76,19 +76,18 @@ int main() {
     unsigned char *message = calloc(4, sizeof(unsigned char));
     unsigned char *private_key_message = calloc(8, sizeof(unsigned char));
     unsigned char *hashed = calloc(4, sizeof(unsigned char));
-    unsigned char *R_binary = calloc(4, sizeof(unsigned char));
+
+    unsigned int hashed_int;
 
     secp256k1_sha256 *hash = calloc(1, sizeof(secp256k1_sha256));
 
-    secp256k1_scalar *hashed_scalar = calloc(1, sizeof(secp256k1_scalar));
-    secp256k1_scalar *zero_scalar = calloc(1, sizeof(secp256k1_scalar));
     secp256k1_scalar *nonce = calloc(1, sizeof(secp256k1_scalar));
     secp256k1_scalar *R = calloc(1, sizeof(secp256k1_scalar));
 
     secp256k1_gej *group_element_jacobian = calloc(1, sizeof(secp256k1_gej));
 
     /* Assinatura Schnorr - R */
-    // Let nonce = (scalar(0) + scalar(hash(bytes(private_key) || message))) mod group_order
+    // Let nonce = int(hash(bytes(private_key) || message)) mod group_order
     //      Fail if nonce = 0.
     // Let R = nonce G.
 
@@ -103,23 +102,16 @@ int main() {
     secp256k1_sha256_finalize(hash, hashed);
     printf("\nhashed (unsigned char)[%lu]: %s\n", 4 * sizeof(hashed), hashed);
 
-    // hashed_scalar = scalar(hash(bytes(private_key) || message))
-    secp256k1_scalar_set_b32(hashed_scalar, hashed, NULL);
-    printf("\nhashed_scalar: %" PRIu32 "\n", *hashed_scalar);
-    // scalar(0)
-    secp256k1_scalar_clear(zero_scalar);
-    printf("\nzero_scalar: %" PRIu32 "\n", *zero_scalar);
-    // nonce = (scalar(0) + scalar(hash(bytes(private_key) || message))) mod group_order
-    secp256k1_scalar_add(nonce, hashed_scalar, zero_scalar);
-    printf("\nnonce: %" PRIu32 "\n", *nonce);
+    // hashed_int = int(hash(bytes(private_key) || message))
+    hashed_int = (int)*hashed;
+    // nonce = int(hash(bytes(private_key) || message)) mod group_order
+    secp256k1_scalar_set_int(nonce, hashed_int);
+    printf("\nnonce (secp256k1_scalar): %" PRIu32 "\n", *nonce);
     
     // R = nonce G
-    R = nonce;
+    secp256k1_scalar_set_int(R, hashed_int);
     secp256k1_ecmult_gen(&ctx->ecmult_gen_ctx, group_element_jacobian, R);
-    if(secp256k1_scalar_is_zero(R))
-        BIO_printf(io_print, "R equals 0");
-    secp256k1_scalar_get_b32(R_binary, R);
-    printf("\nR (unsigned char)[%lu]: %s\n", 4 * sizeof(R_binary), R_binary);
+    //TODO
 
     // Liberando os ponteiros alocados
 
