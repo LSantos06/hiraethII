@@ -25,7 +25,7 @@ int main() {
     EC_KEY *elliptic_curve = NULL;                                       // Curva eliptica OpenSSL
 
     int elliptic_curve_nid;                                              // Nome da curva eliptica OpenSSL
-    unsigned char *private_key = calloc(1, sizeof(unsigned char));       // Chave privada em binario (32 bytes)
+    unsigned char *private_key;                                          // Chave privada em binario (32 bytes)
 
     secp256k1_context *ctx = calloc(1, sizeof(secp256k1_context));       // Contexto
     secp256k1_callback *cb = calloc(1, sizeof(secp256k1_callback));      // Callback para tratamento de erros
@@ -60,7 +60,7 @@ int main() {
     BN_print(io_print, private_key_bignum);
     printf("\n");
     // Chave privada em binario (32 bytes)
-    private_key = malloc(BN_num_bytes(private_key_bignum));
+    private_key = calloc(1, BN_num_bytes(private_key_bignum));
     if (!(BN_bn2bin(private_key_bignum, private_key)))
         BIO_printf(io_print, "Error transforming private key to binary.");
     printf("\nChave privada em binario (unsigned char)[%d]: %s\n", BN_num_bytes(private_key_bignum), private_key);
@@ -73,24 +73,22 @@ int main() {
     printf("\nChave publica em binario (unsigned char)[%lu]: %s\n", sizeof(public_key->data), public_key->data);
 
     /**** sign_schnorr ****/
-    unsigned char *message = calloc(4, sizeof(unsigned char));
-    unsigned char *private_key_message = calloc(8, sizeof(unsigned char));
-    unsigned char *hashed = calloc(4, sizeof(unsigned char));
+    unsigned char *message = calloc(4, sizeof(unsigned char));              // Mensagem de ate 32 bytes
+    unsigned char *private_key_message = calloc(8, sizeof(unsigned char));  // Chave privada concatenada com a mensagem de ate 64 bytes
+    unsigned char *hashed = calloc(4, sizeof(unsigned char));               // Mensagem hasheada de 32 bytes
 
-    unsigned int hashed_int;
+    secp256k1_sha256 *hash = calloc(1, sizeof(secp256k1_sha256));           // Hash SHA256 utilizado pelo Bitcoin
 
-    secp256k1_sha256 *hash = calloc(1, sizeof(secp256k1_sha256));
+    secp256k1_scalar *nonce = calloc(1, sizeof(secp256k1_scalar));          // Random nonce
+    secp256k1_scalar *R = calloc(1, sizeof(secp256k1_scalar));              // R
 
-    secp256k1_scalar *nonce = calloc(1, sizeof(secp256k1_scalar));
-    secp256k1_scalar *R = calloc(1, sizeof(secp256k1_scalar));
-
-    secp256k1_gej *group_element_jacobian = calloc(1, sizeof(secp256k1_gej));
+    secp256k1_gej R_jacobian;                                               // Ponto R jacobiano
+    secp256k1_ge R_affine;                                                  // Ponto R afim
 
     /* Assinatura Schnorr - R */
     // Let nonce = int(hash(bytes(private_key) || message)) mod group_order
-    //      Fail if nonce = 0.
+    //      Fail if nonce = 0
     // Let R = nonce G.
-
     // private_key_message = bytes(private_key) || message
     message = "Charles Leclerc";
     strcat(private_key_message, private_key);
@@ -101,17 +99,34 @@ int main() {
     secp256k1_sha256_write(hash, private_key_message, 8 * sizeof(private_key_message));
     secp256k1_sha256_finalize(hash, hashed);
     printf("\nhashed (unsigned char)[%lu]: %s\n", 4 * sizeof(hashed), hashed);
-
-    // hashed_int = int(hash(bytes(private_key) || message))
-    hashed_int = (int)*hashed;
     // nonce = int(hash(bytes(private_key) || message)) mod group_order
-    secp256k1_scalar_set_int(nonce, hashed_int);
-    printf("\nnonce (secp256k1_scalar): %" PRIu32 "\n", *nonce);
-    
+    secp256k1_scalar_set_b32(nonce, hashed, NULL);
+    printf("\nnonce (secp256k1_scalar): %" PRIu64 "\n", nonce->d[0]);
+    printf("nonce (secp256k1_scalar): %" PRIu64 "\n", nonce->d[1]);
+    printf("nonce (secp256k1_scalar): %" PRIu64 "\n", nonce->d[2]);
+    printf("nonce (secp256k1_scalar): %" PRIu64 "\n", nonce->d[3]);
+    // nonce == 0
+    if (secp256k1_scalar_is_zero(R))
+        BIO_printf(io_print, "Error nonce = 0.");
     // R = nonce G
-    secp256k1_scalar_set_int(R, hashed_int);
-    secp256k1_ecmult_gen(&ctx->ecmult_gen_ctx, group_element_jacobian, R);
-    //TODO
+    secp256k1_scalar_set_b32(R, hashed, NULL);
+    secp256k1_ecmult_gen(&ctx->ecmult_gen_ctx, &R_jacobian, R);
+    // Coordenadas jacobianas do ponto R para coordenadas afim do ponto R
+    secp256k1_ge_set_gej(&R_affine, &R_jacobian);
+    // Normalizacao das coordenadas afim do ponto R
+    secp256k1_fe_normalize(&R_affine.y);
+    secp256k1_fe_normalize(&R_affine.x);
+
+    /* Assinatura Schnorr - s */
+    // if jacobi(y(R)) = 1
+    //      Let k = nonce
+    // otherwise 
+    //      Let k = group_order - nonce
+    // Let e = int(hash(bytes(x(R)) || bytes(public_key) || message)) mod group_order
+    // Let s = bytes(k + e secret_key mod group_order)
+
+    /* Assinatura Schnorr */
+    // The signature is bytes(x(R)) || bytes(k + e secret_key mod group_order)
 
     // Liberando os ponteiros alocados
 
