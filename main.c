@@ -96,8 +96,8 @@ int main() {
     //
     // private_key_message = bytes(private_key) || message
     message = "Charles Leclerc";
-    strcat(private_key_message, private_key);
-    strcat(private_key_message, message);
+    memcpy(private_key_message, private_key, 4 * sizeof(private_key));
+    memcpy(private_key_message + (4 * sizeof(private_key)), message, 4 * sizeof(message));
     printf("\nprivate_key_message (unsigned char)[%lu]: %s\n", 8 * sizeof(private_key_message), private_key_message);
     // hashed = hash(bytes(private_key) || message)
     secp256k1_sha256_initialize(hash);
@@ -134,9 +134,9 @@ int main() {
     secp256k1_fe_get_b32(xR, &R_affine.x);
     printf("\nxR (unsigned char)[%lu]: %s\n", 4 * sizeof(xR), xR);
     // xR_public_key_message = bytes(x(R)) || bytes(public_key) || message
-    strcat(xR_public_key_message, xR);
-    strcat(xR_public_key_message, public_key->data);
-    strcat(xR_public_key_message, message);
+    memcpy(xR_public_key_message, xR, 4 * sizeof(xR));
+    memcpy(xR_public_key_message + (4 * sizeof(xR)), public_key->data, sizeof(public_key->data));
+    memcpy(xR_public_key_message + (4 * sizeof(xR)) + sizeof(public_key->data), message, 4 * sizeof(message));
     printf("\nxR_public_key_message (unsigned char)[%lu]: %s\n", 16 * sizeof(xR_public_key_message), xR_public_key_message);
     // hashed2 = hash(bytes(x(R)) || bytes(public_key) || message)
     secp256k1_sha256_initialize(hash);
