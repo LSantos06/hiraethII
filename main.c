@@ -73,21 +73,21 @@ int main() {
     printf("\nChave publica em binario (unsigned char)[%lu]: %s\n", sizeof(public_key->data), public_key->data);
 
     /**** sign_schnorr ****/
-    unsigned char *message = calloc(4, sizeof(unsigned char));              // Mensagem de ate 32 bytes
-    unsigned char *private_key_message = calloc(8, sizeof(unsigned char));  // Chave privada concatenada com a mensagem de ate 64 bytes
-    unsigned char *xR = calloc(4, sizeof(unsigned char));
-    unsigned char *xR_public_key_message = calloc(16, sizeof(unsigned char));
-    unsigned char *hashed = calloc(4, sizeof(unsigned char));               // Mensagem hasheada de 32 bytes
-    unsigned char *hashed2 = calloc(4, sizeof(unsigned char));               // Mensagem hasheada de 32 bytes
+    unsigned char *message = calloc(32, sizeof(unsigned char));                  // Mensagem de ate 32 bytes
+    unsigned char *private_key_message = calloc(64, sizeof(unsigned char));      // Chave privada concatenada com a mensagem de ate 64 bytes
+    unsigned char *xR = calloc(32, sizeof(unsigned char));                       // Coordenada afim X do ponto R em 32 bytes
+    unsigned char *xR_public_key_message = calloc(128, sizeof(unsigned char));   // Coordenada afim X do ponto R concatenada com a chave publica e com a mensagem em 128 bytes
+    unsigned char *hashed = calloc(32, sizeof(unsigned char));                   // Mensagem hasheada de 32 bytes
+    unsigned char *hashed2 = calloc(32, sizeof(unsigned char));                  // Mensagem hasheada de 32 bytes
 
-    secp256k1_sha256 *hash = calloc(1, sizeof(secp256k1_sha256));           // Hash SHA256 utilizado pelo Bitcoin
+    secp256k1_sha256 *hash = calloc(1, sizeof(secp256k1_sha256));                // Hash SHA256 utilizado pelo Bitcoin
 
-    secp256k1_scalar *nonce = calloc(1, sizeof(secp256k1_scalar));          // Random nonce
-    secp256k1_scalar *R = calloc(1, sizeof(secp256k1_scalar));              // R
-    secp256k1_scalar *e = calloc(1, sizeof(secp256k1_scalar));              // e
+    secp256k1_scalar *nonce = calloc(1, sizeof(secp256k1_scalar));               // Random nonce
+    secp256k1_scalar *R = calloc(1, sizeof(secp256k1_scalar));                   // R
+    secp256k1_scalar *e = calloc(1, sizeof(secp256k1_scalar));                   // e
 
-    secp256k1_gej R_jacobian;                                               // Ponto R jacobiano
-    secp256k1_ge R_affine;                                                  // Ponto R afim
+    secp256k1_gej R_jacobian;                                                    // Ponto R jacobiano
+    secp256k1_ge R_affine;                                                       // Ponto R afim
 
     /* Assinatura Schnorr - R */
     // Let nonce = int(hash(bytes(private_key) || message)) mod group_order
@@ -149,6 +149,7 @@ int main() {
     printf("e (secp256k1_scalar): %" PRIu64 "\n", e->d[1]);
     printf("e (secp256k1_scalar): %" PRIu64 "\n", e->d[2]);
     printf("e (secp256k1_scalar): %" PRIu64 "\n", e->d[3]);
+    // e secret_key mod group_order
 
     /* Assinatura Schnorr */
     // The signature is bytes(x(R)) || bytes(k + e secret_key mod group_order)
