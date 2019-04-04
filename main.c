@@ -75,12 +75,16 @@ int main() {
     /**** sign_schnorr ****/
     unsigned char *message = calloc(4, sizeof(unsigned char));              // Mensagem de ate 32 bytes
     unsigned char *private_key_message = calloc(8, sizeof(unsigned char));  // Chave privada concatenada com a mensagem de ate 64 bytes
+    unsigned char *xR = calloc(4, sizeof(unsigned char));
+    unsigned char *xR_public_key_message = calloc(16, sizeof(unsigned char));
     unsigned char *hashed = calloc(4, sizeof(unsigned char));               // Mensagem hasheada de 32 bytes
+    unsigned char *hashed2 = calloc(4, sizeof(unsigned char));               // Mensagem hasheada de 32 bytes
 
     secp256k1_sha256 *hash = calloc(1, sizeof(secp256k1_sha256));           // Hash SHA256 utilizado pelo Bitcoin
 
     secp256k1_scalar *nonce = calloc(1, sizeof(secp256k1_scalar));          // Random nonce
     secp256k1_scalar *R = calloc(1, sizeof(secp256k1_scalar));              // R
+    secp256k1_scalar *e = calloc(1, sizeof(secp256k1_scalar));              // e
 
     secp256k1_gej R_jacobian;                                               // Ponto R jacobiano
     secp256k1_ge R_affine;                                                  // Ponto R afim
@@ -89,6 +93,7 @@ int main() {
     // Let nonce = int(hash(bytes(private_key) || message)) mod group_order
     //      Fail if nonce = 0
     // Let R = nonce G.
+    //
     // private_key_message = bytes(private_key) || message
     message = "Charles Leclerc";
     strcat(private_key_message, private_key);
@@ -106,7 +111,7 @@ int main() {
     printf("nonce (secp256k1_scalar): %" PRIu64 "\n", nonce->d[2]);
     printf("nonce (secp256k1_scalar): %" PRIu64 "\n", nonce->d[3]);
     // nonce == 0
-    if (secp256k1_scalar_is_zero(R))
+    if (secp256k1_scalar_is_zero(nonce))
         BIO_printf(io_print, "Error nonce = 0.");
     // R = nonce G
     secp256k1_scalar_set_b32(R, hashed, NULL);
@@ -118,12 +123,32 @@ int main() {
     secp256k1_fe_normalize(&R_affine.x);
 
     /* Assinatura Schnorr - s */
-    // if jacobi(y(R)) = 1
-    //      Let k = nonce
-    // otherwise 
-    //      Let k = group_order - nonce
+    //TODO if jacobi(y(R)) = 1
+    //TODO      Let k = nonce
+    //TODO otherwise 
+    //TODO      Let k = group_order - nonce
     // Let e = int(hash(bytes(x(R)) || bytes(public_key) || message)) mod group_order
-    // Let s = bytes(k + e secret_key mod group_order)
+    //TODO Let s = bytes(k + e secret_key mod group_order).
+    //
+    // xR = bytes(x(R))
+    secp256k1_fe_get_b32(xR, &R_affine.x);
+    printf("\nxR (unsigned char)[%lu]: %s\n", 4 * sizeof(xR), xR);
+    // xR_public_key_message = bytes(x(R)) || bytes(public_key) || message
+    strcat(xR_public_key_message, xR);
+    strcat(xR_public_key_message, public_key->data);
+    strcat(xR_public_key_message, message);
+    printf("\nxR_public_key_message (unsigned char)[%lu]: %s\n", 16 * sizeof(xR_public_key_message), xR_public_key_message);
+    // hashed2 = hash(bytes(x(R)) || bytes(public_key) || message)
+    secp256k1_sha256_initialize(hash);
+    secp256k1_sha256_write(hash, xR_public_key_message, 16 * sizeof(xR_public_key_message));
+    secp256k1_sha256_finalize(hash, hashed2);
+    printf("\nhashed2 (unsigned char)[%lu]: %s\n", 4 * sizeof(hashed2), hashed2);
+    // e = int(hash(bytes(x(R)) || bytes(public_key) || message)) mod group_order
+    secp256k1_scalar_set_b32(e, hashed2, NULL);
+    printf("\ne (secp256k1_scalar): %" PRIu64 "\n", e->d[0]);
+    printf("e (secp256k1_scalar): %" PRIu64 "\n", e->d[1]);
+    printf("e (secp256k1_scalar): %" PRIu64 "\n", e->d[2]);
+    printf("e (secp256k1_scalar): %" PRIu64 "\n", e->d[3]);
 
     /* Assinatura Schnorr */
     // The signature is bytes(x(R)) || bytes(k + e secret_key mod group_order)
