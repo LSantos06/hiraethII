@@ -75,19 +75,30 @@ int main() {
     /**** sign_schnorr ****/
     unsigned char *message = calloc(32, sizeof(unsigned char));                  // Mensagem de ate 32 bytes
     unsigned char *private_key_message = calloc(64, sizeof(unsigned char));      // Chave privada concatenada com a mensagem de ate 64 bytes
+    unsigned char *hashed = calloc(32, sizeof(unsigned char));                   // Mensagem hasheada de 32 bytes
+    unsigned char *yR = calloc(32, sizeof(unsigned char));                       // Coordenada afim Y do ponto R em 32 bytes
     unsigned char *xR = calloc(32, sizeof(unsigned char));                       // Coordenada afim X do ponto R em 32 bytes
     unsigned char *xR_public_key_message = calloc(128, sizeof(unsigned char));   // Coordenada afim X do ponto R concatenada com a chave publica e com a mensagem em 128 bytes
-    unsigned char *hashed = calloc(32, sizeof(unsigned char));                   // Mensagem hasheada de 32 bytes
     unsigned char *hashed2 = calloc(32, sizeof(unsigned char));                  // Mensagem hasheada de 32 bytes
+    unsigned char *s = calloc(32, sizeof(unsigned char));                        // s de 32 bytes
 
     secp256k1_sha256 *hash = calloc(1, sizeof(secp256k1_sha256));                // Hash SHA256 utilizado pelo Bitcoin
 
     secp256k1_scalar *nonce = calloc(1, sizeof(secp256k1_scalar));               // Random nonce
     secp256k1_scalar *R = calloc(1, sizeof(secp256k1_scalar));                   // R
     secp256k1_scalar *e = calloc(1, sizeof(secp256k1_scalar));                   // e
+    secp256k1_scalar *private_key_scalar = calloc(1, sizeof(secp256k1_scalar));  // Chave privada em scalar
+    secp256k1_scalar *mul = calloc(1, sizeof(secp256k1_scalar));                 // Multiplicacao de dois scalars
 
     secp256k1_gej R_jacobian;                                                    // Ponto R jacobiano
     secp256k1_ge R_affine;                                                       // Ponto R afim
+
+    secp256k1_num *yR_num = calloc(1, sizeof(secp256k1_num));                    // Coordenada afim Y do ponto R em num
+    secp256k1_num *group_order = calloc(1, sizeof(secp256k1_num));               // Curve order em num
+    secp256k1_num *nonce_num = calloc(1, sizeof(secp256k1_num));                 // Random nonce em num
+    secp256k1_num *k = calloc(1, sizeof(secp256k1_num));                         // k
+    secp256k1_num *mul_num = calloc(1, sizeof(secp256k1_num));                   // Multiplicacao de dois scalars em num
+    secp256k1_num *sum = calloc(1, sizeof(secp256k1_num));                       // Soma de dois nums
 
     /* Assinatura Schnorr - R */
     // Let nonce = int(hash(bytes(private_key) || message)) mod group_order
@@ -123,13 +134,35 @@ int main() {
     secp256k1_fe_normalize(&R_affine.x);
 
     /* Assinatura Schnorr - s */
-    //TODO if jacobi(y(R)) = 1
-    //TODO      Let k = nonce
-    //TODO otherwise 
-    //TODO      Let k = group_order - nonce
+    // if jacobi(y(R)) = 1
+    //      Let k = nonce
+    // otherwise 
+    //      Let k = group_order - nonce
     // Let e = int(hash(bytes(x(R)) || bytes(public_key) || message)) mod group_order
-    //TODO Let s = bytes(k + e secret_key mod group_order).
+    //TODO Let s = bytes(k + e private_key mod group_order).
     //
+    // yR = bytes(y(R))
+    secp256k1_fe_get_b32(yR, &R_affine.y);
+    // yR_num = num(yR)
+    secp256k1_num_set_bin(yR_num, yR, 4 * sizeof(yR));
+    // group_order
+    secp256k1_scalar_order_get_num(group_order);
+    // if jacobi(y(R)) = 1
+    if (secp256k1_num_jacobi(yR_num, group_order) == 1)
+    {
+        printf("\njacobi(y(R)) = 1\n");
+        // k = num(nonce)
+        secp256k1_num_set_bin(k, hashed, 4 * sizeof(hashed));
+    }
+    // otherwise
+    else
+    {
+        printf("\njacobi(y(R)) != 1\n");
+        // nonce_num = num(nonce)
+        secp256k1_num_set_bin(nonce_num, hashed, 4 * sizeof(hashed));
+        // k_num = group_order - nonce_num
+        secp256k1_num_sub(k, group_order, nonce_num);
+    }
     // xR = bytes(x(R))
     secp256k1_fe_get_b32(xR, &R_affine.x);
     printf("\nxR (unsigned char)[%lu]: %s\n", 4 * sizeof(xR), xR);
@@ -149,7 +182,25 @@ int main() {
     printf("e (secp256k1_scalar): %" PRIu64 "\n", e->d[1]);
     printf("e (secp256k1_scalar): %" PRIu64 "\n", e->d[2]);
     printf("e (secp256k1_scalar): %" PRIu64 "\n", e->d[3]);
-    // e secret_key mod group_order
+    // private_key_scalar = int(private_key) mod group_order
+    secp256k1_scalar_set_b32(private_key_scalar, private_key, NULL);
+    printf("\nprivate_key_scalar (secp256k1_scalar): %" PRIu64 "\n", private_key_scalar->d[0]);
+    printf("private_key_scalar (secp256k1_scalar): %" PRIu64 "\n", private_key_scalar->d[1]);
+    printf("private_key_scalar (secp256k1_scalar): %" PRIu64 "\n", private_key_scalar->d[2]);
+    printf("private_key_scalar (secp256k1_scalar): %" PRIu64 "\n", private_key_scalar->d[3]);
+    // mul = e private_key mod group_order
+    secp256k1_scalar_mul(mul, e, private_key_scalar);
+    printf("\nmul (secp256k1_scalar): %" PRIu64 "\n", mul->d[0]);
+    printf("mul (secp256k1_scalar): %" PRIu64 "\n", mul->d[1]);
+    printf("mul (secp256k1_scalar): %" PRIu64 "\n", mul->d[2]);
+    printf("mul (secp256k1_scalar): %" PRIu64 "\n", mul->d[3]);
+    // mul_num = num(mul)
+    secp256k1_scalar_get_num(mul_num, mul);
+    // sum = k + e secret_key mod group_order
+    secp256k1_num_add(sum, k, mul_num);
+    //ERROR s = bytes(k + e secret_key mod group_order)
+    secp256k1_num_get_bin(s, 8 * sizeof(s), sum);
+    printf("\ns (unsigned char)[%lu]: %s\n", 4 * sizeof(s), s);
 
     /* Assinatura Schnorr */
     // The signature is bytes(x(R)) || bytes(k + e secret_key mod group_order)
