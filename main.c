@@ -77,6 +77,8 @@ int main() {
     unsigned char *private_key_message = calloc(64, sizeof(unsigned char));      // Chave privada concatenada com a mensagem de ate 64 bytes
     unsigned char *hashed = calloc(32, sizeof(unsigned char));                   // Mensagem hasheada de 32 bytes
 
+    unsigned char *group_order_bin = calloc(32, sizeof(unsigned char));          // Curve order em binario de 32 bytes
+
     unsigned char *yR = calloc(32, sizeof(unsigned char));                       // Coordenada afim Y do ponto R em 32 bytes
     unsigned char *xR = calloc(32, sizeof(unsigned char));                       // Coordenada afim X do ponto R em 32 bytes
     unsigned char *xR_public_key_message = calloc(128, sizeof(unsigned char));   // Coordenada afim X do ponto R concatenada com a chave publica e com a mensagem em 128 bytes
@@ -93,7 +95,10 @@ int main() {
     secp256k1_scalar *nonce = calloc(1, sizeof(secp256k1_scalar));               // Random nonce
     secp256k1_scalar *R = calloc(1, sizeof(secp256k1_scalar));                   // R
 
+    secp256k1_scalar *group_order_scalar = calloc(1, sizeof(secp256k1_scalar));  // Curve order em scalar
+
     secp256k1_scalar *k = calloc(1, sizeof(secp256k1_scalar));                   // k
+    secp256k1_scalar *minus_nonce = calloc(1, sizeof(secp256k1_scalar));         // Complemento do random nonce
 
     secp256k1_scalar *e = calloc(1, sizeof(secp256k1_scalar));                   // e
     secp256k1_scalar *private_key_scalar = calloc(1, sizeof(secp256k1_scalar));  // Chave privada em scalar
@@ -106,7 +111,6 @@ int main() {
     secp256k1_num *group_order = calloc(1, sizeof(secp256k1_num));               // Curve order
 
     secp256k1_num *yR_num = calloc(1, sizeof(secp256k1_num));                    // Coordenada afim Y do ponto R em num
-    secp256k1_num *nonce_num = calloc(1, sizeof(secp256k1_num));                 // Random nonce em num
     secp256k1_num *k_num = calloc(1, sizeof(secp256k1_num));                     // k em num
 
     /* Assinatura Schnorr - R */
@@ -161,6 +165,8 @@ int main() {
     secp256k1_num_set_bin(yR_num, yR, 4 * sizeof(yR));
     // group_order
     secp256k1_scalar_order_get_num(group_order);
+    secp256k1_num_get_bin(group_order_bin, 4 * sizeof(group_order_bin), group_order);
+    secp256k1_scalar_set_b32(group_order_scalar, group_order_bin, NULL);
     // if jacobi(y(R)) = 1
     if (secp256k1_num_jacobi(yR_num, group_order) == 1)
     {
@@ -172,14 +178,9 @@ int main() {
     else
     {
         printf("\njacobi(y(R)) != 1\n");
-        // nonce_num = num(nonce)
-        secp256k1_num_set_bin(nonce_num, hashed, 4 * sizeof(hashed));
-        // k_num = group_order - nonce_num
-        secp256k1_num_sub(k_num, group_order, nonce_num);
-        // k_bin = bytes(k_num) 
-        secp256k1_num_get_bin(k_bin, 4 * sizeof(k_bin), k_num);
-        // k = int(k_bin) mod group_order
-        secp256k1_scalar_set_b32(k, k_bin, NULL);
+        // k = group_order - nonce
+        secp256k1_scalar_negate(minus_nonce, nonce);
+        secp256k1_scalar_add(k, group_order_scalar, minus_nonce);
     }
     printf("\nk (secp256k1_scalar): %" PRIu64 "\n", k->d[0]);
     printf("k (secp256k1_scalar): %" PRIu64 "\n", k->d[1]);
