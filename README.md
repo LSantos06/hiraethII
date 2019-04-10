@@ -9,7 +9,10 @@ sudo apt-get install libssl-dev
 sudo apt-get install autoconf
 sudo apt-get install libtool
 ```
-
+#### GMP
+```
+sudo apt-get install libgmp3-dev
+```
 
 
     
