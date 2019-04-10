@@ -21,6 +21,9 @@
 int main() {
             
     /**** generate_keys ****/
+    /**** generate_keys ****/
+    /**** generate_keys ****/
+    
     BIO *io_print = NULL;                                                // Print OpenSSL
     EC_KEY *elliptic_curve = NULL;                                       // Curva eliptica OpenSSL
 
@@ -53,7 +56,7 @@ int main() {
     /* Geracao das chaves */
     // Geracao das chaves a partir da curva eliptica
     if (!(EC_KEY_generate_key(elliptic_curve)))
-        BIO_printf(io_print, "Error generating public and private keys.");
+        BIO_printf(io_print, "ERROR generating public and private keys.");
     // Armazenamento da chave privada em bignum
     const BIGNUM *private_key_bignum = EC_KEY_get0_private_key(elliptic_curve);
     printf("Chave privada em BIGNUM: ");
@@ -62,17 +65,20 @@ int main() {
     // Chave privada em binario (32 bytes)
     private_key = calloc(1, BN_num_bytes(private_key_bignum));
     if (!(BN_bn2bin(private_key_bignum, private_key)))
-        BIO_printf(io_print, "Error transforming private key to binary.");
+        BIO_printf(io_print, "ERROR transforming private key to binary.");
     printf("\nChave privada em binario (unsigned char)[%d]: %s\n", BN_num_bytes(private_key_bignum), private_key);
     // Verificacao da validade da chave privada
     if (!(secp256k1_ec_seckey_verify(ctx, private_key)))
-        BIO_printf(io_print, "Error validating the private key.");
+        BIO_printf(io_print, "ERROR validating the private key.");
     // Calculo da chave publica a partir da chave privada
     if (!(secp256k1_ec_pubkey_create(ctx, public_key, private_key)))
-        BIO_printf(io_print, "Error generating the public key.");
+        BIO_printf(io_print, "ERROR generating the public key.");
     printf("\nChave publica em binario (unsigned char)[%lu]: %s\n", sizeof(public_key->data), public_key->data);
 
     /**** sign_schnorr ****/
+    /**** sign_schnorr ****/
+    /**** sign_schnorr ****/
+
     unsigned char *message = calloc(32, sizeof(unsigned char));                  // Mensagem de ate 32 bytes
     unsigned char *private_key_message = calloc(64, sizeof(unsigned char));      // Chave privada concatenada com a mensagem de ate 64 bytes
     unsigned char *hashed = calloc(32, sizeof(unsigned char));                   // Mensagem hasheada de 32 bytes
@@ -136,7 +142,7 @@ int main() {
     printf("nonce (secp256k1_scalar): %" PRIu64 "\n", nonce->d[3]);
     // nonce == 0
     if (secp256k1_scalar_is_zero(nonce))
-        BIO_printf(io_print, "Error nonce = 0.");
+        BIO_printf(io_print, "ERROR nonce = 0.");
     // R = nonce G
     secp256k1_scalar_set_b32(R, hashed, NULL);
     secp256k1_ecmult_gen(&ctx->ecmult_gen_ctx, &R_jacobian, R);
@@ -180,7 +186,8 @@ int main() {
         printf("\njacobi(y(R)) != 1\n");
         // k = group_order - nonce
         secp256k1_scalar_negate(minus_nonce, nonce);
-        secp256k1_scalar_add(k, group_order_scalar, minus_nonce);
+        if(secp256k1_scalar_add(k, group_order_scalar, minus_nonce))
+            BIO_printf(io_print, "ERROR overflow k.");
     }
     printf("\nk (secp256k1_scalar): %" PRIu64 "\n", k->d[0]);
     printf("k (secp256k1_scalar): %" PRIu64 "\n", k->d[1]);
@@ -210,7 +217,8 @@ int main() {
     printf("mul (secp256k1_scalar): %" PRIu64 "\n", mul->d[2]);
     printf("mul (secp256k1_scalar): %" PRIu64 "\n", mul->d[3]);
     // sum = k + e secret_key mod group_order
-    secp256k1_scalar_add(sum, k, mul);
+    if (secp256k1_scalar_add(sum, k, mul))
+        BIO_printf(io_print, "ERROR overflow sum.");
     printf("\nsum (secp256k1_scalar): %" PRIu64 "\n", sum->d[0]);
     printf("sum (secp256k1_scalar): %" PRIu64 "\n", sum->d[1]);
     printf("sum (secp256k1_scalar): %" PRIu64 "\n", sum->d[2]);
@@ -224,6 +232,41 @@ int main() {
     memcpy(sign, xR, 4 * sizeof(xR));
     memcpy(sign + (4 * sizeof(xR)), s, 4 * sizeof(s));
     printf("\nsign (unsigned char)[%lu]: %s\n", (4 * sizeof(xR)) + (4 * sizeof(s)), sign);
+
+    /**** verify_schnorr ****/
+    /**** verify_schnorr ****/
+    /**** verify_schnorr ****/
+
+    unsigned char *compressed_public_key = calloc(33, sizeof(unsigned char));
+    const unsigned char field_size[] = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F";
+
+    size_t compressed_public_key_size = 33;
+
+    secp256k1_ge P;
+
+    int compare;
+
+    // Let P = point(public_key); fail if point(public_key) fails.
+    // Let r = int(sign[0:32]); fail if r ≥ field_size.
+    // Let s = int(sign[32:64]); fail if s ≥ group_order.
+    // Let e = int(hash(bytes(r) || bytes(P) || message)) mod group_order.
+    // Let R = s G - e P.
+    // Fail if infinite(R) or jacobi(y(R)) ≠ 1 or x(R) ≠ r.
+    //
+    // Comprime a chave publica para o tamanho de 33 bytes
+    secp256k1_ec_pubkey_serialize(ctx, compressed_public_key, &compressed_public_key_size, public_key, SECP256K1_EC_COMPRESSED);
+    printf("\ncompressed_public_key (unsigned char)[%d]: %s\n", 33, compressed_public_key);
+    // P = point(public_key)
+    if (!(secp256k1_eckey_pubkey_parse(&P, compressed_public_key, compressed_public_key_size)))
+        BIO_printf(io_print, "ERROR generating public key point.");
+    // r = int(sign[0:32]); fail if r ≥ field_size
+    compare = memcmp(xR, field_size, 32);
+    if(compare > 0)
+        BIO_printf(io_print, "ERROR r ≥ field_size.");
+    // s = int(sign[32:64]); fail if s ≥ group_order
+    compare = memcmp(s, group_order_bin, 32);
+    if(compare > 0)
+        BIO_printf(io_print, "ERROR s ≥ group_order.");
 
     // Liberando os ponteiros alocados
 
